@@ -37,6 +37,7 @@ Andmebaas ja seaded on kaustas `%LOCALAPPDATA%\PCTimeLogger`:
   - `idle_seconds`: mitu sekundit ilma tegevuseta loetakse jõudeajaks (vaikimisi 300).
   - `store_titles`: kas salvestada akende pealkirjad (vaikimisi `true`).
   - `objects_root`: kausta „AAA aktiivsed objektid“ asukoht (kasutatakse etapis 2).
+  - `phone_inbox`: Google Drive'i kaust, kuhu telefoniäpp oma andmed saadab, näiteks `G:\\Minu draiv\\PC time logger\\phone-inbox`. Logimise ajal loetakse see iga 5 min järel. Käsitsi: `python -m pctimelogger import-phone`.
 - `pctimelogger.log` on programmi enda logi vigade otsimiseks.
 
 ## Kuidas fail tuvastatakse
