@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .timeutil import to_iso, utcnow
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS objects (
@@ -54,8 +54,16 @@ CREATE TABLE IF NOT EXISTS activity (
     km                 REAL,
     amount             REAL,
     note               TEXT,
+    object_name        TEXT,
+    mode               TEXT,
     device_id          TEXT,
     imported_at        TEXT
+);
+
+CREATE TABLE IF NOT EXISTS imported_files (
+    name        TEXT PRIMARY KEY,
+    mtime       REAL NOT NULL,
+    imported_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS activity_start ON activity(start_ts);
@@ -71,9 +79,17 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(activity)")}
+    for name in ("object_name", "mode"):
+        if name not in columns:
+            conn.execute(f"ALTER TABLE activity ADD COLUMN {name} TEXT")
 
 
 class ActivityStore:

@@ -8,7 +8,7 @@ import time
 from datetime import date, timedelta
 from logging.handlers import RotatingFileHandler
 
-from . import db, report
+from . import db, phone_import, report
 from .config import config_path, data_dir, load_config
 from .timeutil import utcnow
 from .tracker import Tracker
@@ -39,12 +39,19 @@ def cmd_run(args) -> int:
     tracker = Tracker(db.ActivityStore(conn, socket.gethostname()), cfg)
     sampler = WindowsSampler()
     log.info("Logimine algas, andmebaas: %s", cfg.db_path)
+    next_import = 0.0
     try:
         while True:
             try:
                 tracker.observe(sampler.sample())
             except Exception:
                 log.exception("Proovi lugemine ebaõnnestus")
+            if cfg.phone_inbox and time.monotonic() >= next_import:
+                next_import = time.monotonic() + cfg.phone_import_seconds
+                try:
+                    phone_import.import_folder(conn, cfg.phone_inbox)
+                except Exception:
+                    log.exception("Telefoni andmete import ebaõnnestus")
             time.sleep(cfg.poll_seconds)
     except KeyboardInterrupt:
         pass
@@ -83,6 +90,17 @@ def cmd_timeline(args) -> int:
     return 0
 
 
+def cmd_import_phone(args) -> int:
+    cfg = load_config()
+    folder = args.folder or cfg.phone_inbox
+    if not folder:
+        print("Telefoni kaust pole määratud. Lisa config.json faili phone_inbox või kasuta --folder.", file=sys.stderr)
+        return 1
+    count = phone_import.import_folder(db.connect(cfg.db_path), folder)
+    print(f"Imporditi {count} telefoni kirjet.")
+    return 0
+
+
 def cmd_info(args) -> int:
     cfg = load_config()
     print(f"Seaded:     {config_path()}")
@@ -110,6 +128,10 @@ def main(argv: list[str] | None = None) -> int:
     tl = sub.add_parser("timeline", help="päeva ajajoon")
     tl.add_argument("--day", help="päev kujul AAAA-KK-PP (vaikimisi täna)")
     tl.set_defaults(func=cmd_timeline)
+
+    imp = sub.add_parser("import-phone", help="loe telefoni andmed Google Drive'i kaustast")
+    imp.add_argument("--folder", help="kaust (vaikimisi config.json phone_inbox)")
+    imp.set_defaults(func=cmd_import_phone)
 
     sub.add_parser("info", help="näita seadete ja andmebaasi asukohta").set_defaults(func=cmd_info)
 

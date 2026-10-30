@@ -31,6 +31,10 @@ class Config:
     store_titles: bool = True
     # Folder holding the active object folders, e.g. D:\AAA aktiivsed objektid.
     objects_root: str = ""
+    # Google Drive folder the phone app uploads its packets to.
+    phone_inbox: str = ""
+    # How often the phone inbox is checked while logging.
+    phone_import_seconds: float = 300.0
     db_path: str = field(default_factory=lambda: str(data_dir() / "timelog.db"))
 
     @property
