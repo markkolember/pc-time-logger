@@ -1,17 +1,17 @@
-"""Command line: python -m pctimelogger run | report | timeline | info"""
+"""Command line: python -m pctimelogger [run | report | timeline | import-phone | info]
+
+Without a command it starts the tray app, like PCTimeLogger.exe.
+"""
 
 import argparse
 import logging
-import socket
 import sys
-import time
+import threading
 from datetime import date, timedelta
 from logging.handlers import RotatingFileHandler
 
 from . import db, phone_import, report
 from .config import config_path, data_dir, load_config
-from .timeutil import utcnow
-from .tracker import Tracker
 
 log = logging.getLogger("pctimelogger")
 
@@ -28,37 +28,31 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
-def cmd_run(args) -> int:
+def _windows_only() -> bool:
     if sys.platform != "win32":
         print("Logimine töötab ainult Windowsis.", file=sys.stderr)
-        return 1
-    from .platform_win import WindowsSampler
+        return False
+    return True
 
-    cfg = load_config()
-    conn = db.connect(cfg.db_path)
-    tracker = Tracker(db.ActivityStore(conn, socket.gethostname()), cfg)
-    sampler = WindowsSampler()
-    log.info("Logimine algas, andmebaas: %s", cfg.db_path)
-    next_import = 0.0
+
+def cmd_app(args) -> int:
+    if not _windows_only():
+        return 1
+    from .app import main as app_main
+
+    return app_main()
+
+
+def cmd_run(args) -> int:
+    if not _windows_only():
+        return 1
+    from .service import run_logging
+
+    stop = threading.Event()
     try:
-        while True:
-            try:
-                tracker.observe(sampler.sample())
-            except Exception:
-                log.exception("Proovi lugemine ebaõnnestus")
-            if cfg.phone_inbox and time.monotonic() >= next_import:
-                next_import = time.monotonic() + cfg.phone_import_seconds
-                try:
-                    phone_import.import_folder(conn, cfg.phone_inbox)
-                except Exception:
-                    log.exception("Telefoni andmete import ebaõnnestus")
-            time.sleep(cfg.poll_seconds)
+        run_logging(load_config(), stop)
     except KeyboardInterrupt:
-        pass
-    finally:
-        tracker.stop(utcnow())
-        conn.close()
-        log.info("Logimine lõppes")
+        stop.set()
     return 0
 
 
@@ -112,7 +106,9 @@ def cmd_info(args) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pctimelogger", description="PC ajalogija")
     parser.add_argument("-v", "--verbose", action="store_true")
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument("--installed", action="store_true", help=argparse.SUPPRESS)
+    parser.set_defaults(func=cmd_app)
+    sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("run", help="logi aktiivset programmi ja faili taustal").set_defaults(func=cmd_run)
 
