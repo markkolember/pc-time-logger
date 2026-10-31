@@ -1,0 +1,12 @@
+[project]
+name = "pctimelogger"
+version = "0.1.0"
+description = "Logib, kui kaua töötad mis programmis ja failiga, ja seob aja objektidega."
+requires-python = ">=3.10"
+dependencies = [
+    "psutil>=5.9",
+    "pywin32>=306; sys_platform == 'win32'",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
