@@ -27,6 +27,8 @@ class Config:
     flush_seconds: float = 30.0
     # Segments shorter than this (e.g. alt-tabbing past a window) are dropped.
     min_seconds: float = 3.0
+    # Start with Windows (set from the tray menu).
+    autostart: bool = True
     # Save window titles; turn off to keep only program and file.
     store_titles: bool = True
     # Folder holding the active object folders, e.g. D:\AAA aktiivsed objektid.
@@ -43,6 +45,12 @@ class Config:
         return max(self.poll_seconds * 5, 30.0)
 
 
+def save_config(cfg: Config, path: Path | None = None) -> None:
+    path = path or config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(asdict(cfg), indent=2, ensure_ascii=False), encoding="utf-8")
+
+
 def load_config(path: Path | None = None) -> Config:
     path = path or config_path()
     cfg = Config()
@@ -53,6 +61,5 @@ def load_config(path: Path | None = None) -> Config:
             if key in known:
                 setattr(cfg, key, value)
     else:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(asdict(cfg), indent=2, ensure_ascii=False), encoding="utf-8")
+        save_config(cfg, path)
     return cfg
