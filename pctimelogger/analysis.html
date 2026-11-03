@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PC ajalogija – analüüs</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #667085; --line: #e4e7ec;
+    --accent: #206ec8; --accent-soft: #e7f0fb; --site: #2e8b57; --bar: #9cc3ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b2029; --text: #e6e9ef; --muted: #98a2b3; --line: #2c3340;
+      --accent: #6aa8ef; --accent-soft: #1f2f45; --site: #5cc28c; --bar: #2f5b8f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 2px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin-bottom: 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+  button, input { font: inherit; color: var(--text); background: var(--card);
+                  border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; }
+  button { cursor: pointer; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .card .v { font-size: 22px; font-weight: 600; }
+  .card .l { color: var(--muted); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+            padding: 14px; margin-bottom: 16px; overflow-x: auto; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  td.wrap { white-space: normal; }
+  tr.topic td:first-child { padding-left: 26px; color: var(--muted); }
+  tr.obj { cursor: pointer; }
+  tr.obj td:first-child::before { content: "▸ "; color: var(--muted); }
+  tr.obj.open td:first-child::before { content: "▾ "; }
+  .meter { position: relative; min-width: 90px; }
+  .meter span { position: absolute; left: 0; top: 3px; bottom: 3px; background: var(--bar); border-radius: 3px; z-index: 0; }
+  .meter b { position: relative; z-index: 1; font-weight: normal; }
+  .site { color: var(--site); }
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); padding: 10px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tulemuste analüüs</h1>
+  <div class="sub">Koostatud {{GENERATED}}. Arvutis = aeg, mil fail või programm oli aktiivne aken (jõudeaeg maha arvatud). Kohal = telefoni järgi objektil viibitud aeg. Sõit = sõit objektile või sealt tagasi. Klõpsa objektil, et näha teemasid.</div>
+
+  <div class="bar" id="presets"></div>
+  <div class="bar">
+    <label>Alates <input type="date" id="from"></label>
+    <label>Kuni <input type="date" id="to"></label>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h2>Objektid ja teemad</h2>
+    <table id="t-obj"></table>
+  </section>
+  <section>
+    <div class="head"><h2>Kaustad</h2></div>
+    <table id="t-folder"></table>
+  </section>
+  <section>
+    <div class="head"><h2>Failid</h2><input id="q" placeholder="Otsi faili või kausta"></div>
+    <table id="t-file"></table>
+  </section>
+</main>
+<script>
+const DATA = /*DATA*/null;
+const F = Object.fromEntries(DATA.fields.map((f, i) => [f, i]));
+const rows = DATA.rows.map(r => Object.fromEntries(DATA.fields.map((f, i) => [f, r[i]])));
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const hm0 = s => s ? hm(s) : "";
+const hm = s => { const m = Math.round(s / 60); return `${Math.floor(m / 60)}:${pad(m % 60)}`; };
+const dt = ts => { if (!ts) return ""; const d = new Date(ts); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const NONE = "(objektita)";
+
+const today = new Date();
+const monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+const firstDay = rows.reduce((m, r) => r.day < m ? r.day : m, iso(today));
+const presets = [
+  ["Täna", iso(today), iso(today)],
+  ["See nädal", iso(monday), iso(today)],
+  ["See kuu", iso(new Date(today.getFullYear(), today.getMonth(), 1)), iso(today)],
+  ["Eelmine kuu", iso(new Date(today.getFullYear(), today.getMonth() - 1, 1)), iso(new Date(today.getFullYear(), today.getMonth(), 0))],
+  ["Kõik", firstDay, iso(today)],
+];
+presets.forEach(([label, a, b], i) => {
+  const btn = document.createElement("button");
+  btn.textContent = label;
+  btn.onclick = () => { $("from").value = a; $("to").value = b; mark(i); render(); };
+  $("presets").appendChild(btn);
+});
+function mark(i) { [...$("presets").children].forEach((b, j) => b.classList.toggle("on", j === i)); }
+$("from").onchange = $("to").onchange = () => { mark(-1); render(); };
+$("q").oninput = () => renderFiles(current);
+
+function group(list, keyFn, init) {
+  const m = new Map();
+  for (const r of list) {
+    const k = keyFn(r);
+    if (!m.has(k)) m.set(k, init(r));
+    const g = m.get(k);
+    g.rows.push(r);
+  }
+  return [...m.values()];
+}
+function sum(list, src) { return list.filter(r => !src || r.source === src).reduce((s, r) => s + r.seconds, 0); }
+function last(list) { return list.reduce((m, r) => (r.last && (!m || r.last > m)) ? r.last : m, null); }
+function days(list) { return new Set(list.map(r => r.day)).size; }
+function meter(sec, max) { return `<td class="n meter"><span style="width:${max ? Math.round(sec / max * 100) : 0}%"></span><b>${hm(sec)}</b></td>`; }
+
+const sortState = {};
+function sortable(tableId, cols, data, rowHtml, defaultKey) {
+  const st = sortState[tableId] ||= { key: defaultKey, dir: -1 };
+  const sorted = [...data].sort((a, b) => {
+    const x = a[st.key], y = b[st.key];
+    return (x > y ? 1 : x < y ? -1 : 0) * st.dir;
+  });
+  const head = "<tr>" + cols.map(([k, label, num]) =>
+    `<th class="${num ? "n" : ""}" data-k="${k}">${label}${st.key === k ? (st.dir < 0 ? " ↓" : " ↑") : ""}</th>`).join("") + "</tr>";
+  $(tableId).innerHTML = sorted.length ? head + sorted.map(rowHtml).join("") : `<tr><td class="empty">Selles vahemikus andmeid pole.</td></tr>`;
+  $(tableId).querySelectorAll("th").forEach(th => th.onclick = () => {
+    const k = th.dataset.k;
+    st.dir = st.key === k ? -st.dir : (cols.find(c => c[0] === k)[2] ? -1 : 1);
+    st.key = k;
+    render();
+  });
+}
+
+let current = [];
+const openObjects = new Set();
+
+function render() {
+  const a = $("from").value, b = $("to").value;
+  current = rows.filter(r => r.day >= a && r.day <= b);
+  const pc = sum(current, "pc"), site = sum(current, "site"), drive = sum(current, "drive");
+  const km = current.filter(r => r.source === "drive").reduce((s, r) => s + r.km, 0);
+  const objCount = new Set(current.filter(r => r.object).map(r => r.object)).size;
+  $("cards").innerHTML = [
+    [hm(pc), "Arvutis kokku"],
+    [hm(site), "Objektidel kohal"],
+    [`${hm(drive)}`, `Sõit${km ? `, ${km.toFixed(0)} km` : ""}`],
+    [objCount, "Objekte"],
+  ].map(([v, l]) => `<div class="card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+
+  // Objects with topics
+  const stats = g => ({ ...g, pc: sum(g.rows, "pc"), site: sum(g.rows, "site"), drive: sum(g.rows, "drive"),
+    km: g.rows.reduce((s, r) => s + (r.km || 0), 0), total: sum(g.rows), days: days(g.rows), last: last(g.rows) || "" });
+  const objs = group(current, r => r.object || NONE, r => ({ name: r.object || NONE, rows: [] })).map(stats);
+  const maxObj = Math.max(0, ...objs.map(o => o.total));
+  sortable("t-obj",
+    [["name", "Objekt / teema"], ["pc", "Arvutis", 1], ["site", "Kohal", 1], ["drive", "Sõit", 1], ["km", "km", 1], ["total", "Kokku", 1], ["days", "Päevi", 1], ["last", "Viimati", 1]],
+    objs,
+    o => {
+      const open = openObjects.has(o.name);
+      const cells = x => `<td class="n">${hm0(x.pc)}</td><td class="n site">${hm0(x.site)}</td><td class="n">${hm0(x.drive)}</td><td class="n">${x.km ? x.km.toFixed(0) : ""}</td>`;
+      let h = `<tr class="obj${open ? " open" : ""}" data-o="${esc(o.name)}"><td>${esc(o.name)}</td>${cells(o)}${meter(o.total, maxObj)}<td class="n">${o.days}</td><td class="n">${dt(o.last)}</td></tr>`;
+      if (open) {
+        const topics = group(o.rows, r => r.topic || "", r => ({ name: r.topic || "(üldine)", rows: [] }))
+          .map(stats).sort((x, y) => y.total - x.total);
+        h += topics.map(t => `<tr class="topic"><td>${esc(t.name)}</td>${cells(t)}<td class="n">${hm(t.total)}</td><td class="n">${t.days}</td><td class="n">${dt(t.last)}</td></tr>`).join("");
+      }
+      return h;
+    }, "total");
+  $("t-obj").querySelectorAll("tr.obj").forEach(tr => tr.onclick = () => {
+    const o = tr.dataset.o;
+    openObjects.has(o) ? openObjects.delete(o) : openObjects.add(o);
+    render();
+  });
+
+  // Folders
+  const pcRows = current.filter(r => r.source === "pc" && r.folder);
+  const folders = group(pcRows, r => r.folder, r => ({ name: r.folder, object: r.object || "", rows: [] })).map(g => ({
+    ...g, total: sum(g.rows), files: new Set(g.rows.filter(r => r.path).map(r => r.path)).size, days: days(g.rows), last: last(g.rows) || "",
+  }));
+  const maxFolder = Math.max(0, ...folders.map(f => f.total));
+  sortable("t-folder",
+    [["name", "Kaust"], ["object", "Objekt"], ["total", "Arvutis", 1], ["files", "Faile", 1], ["days", "Päevi", 1], ["last", "Viimati", 1]],
+    folders,
+    f => `<tr><td class="wrap">${esc(f.name)}</td><td>${esc(f.object) || '<span class="muted">–</span>'}</td>${meter(f.total, maxFolder)}<td class="n">${f.files}</td><td class="n">${f.days}</td><td class="n">${dt(f.last)}</td></tr>`,
+    "total");
+
+  renderFiles(current);
+}
+
+function renderFiles(list) {
+  const q = $("q").value.trim().toLowerCase();
+  const fileRows = list.filter(r => r.source === "pc" && r.path && (!q || r.path.toLowerCase().includes(q)));
+  const files = group(fileRows, r => r.path, r => ({ name: r.file, folder: r.folder, app: r.detail, path: r.path, rows: [] })).map(g => ({
+    ...g, total: sum(g.rows), count: g.rows.reduce((s, r) => s + r.count, 0),
+    first: g.rows.reduce((m, r) => (!m || r.first < m) ? r.first : m, null) || "", last: last(g.rows) || "",
+  }));
+  const maxFile = Math.max(0, ...files.map(f => f.total));
+  sortable("t-file",
+    [["name", "Fail"], ["folder", "Kaust"], ["app", "Programm"], ["total", "Aeg", 1], ["count", "Kordi", 1], ["first", "Esimene", 1], ["last", "Viimati", 1]],
+    files.slice(0, 500),
+    f => `<tr title="${esc(f.path)}"><td class="wrap">${esc(f.name)}</td><td class="wrap muted">${esc(f.folder)}</td><td>${esc(f.app)}</td>${meter(f.total, maxFile)}<td class="n">${f.count}</td><td class="n">${dt(f.first)}</td><td class="n">${dt(f.last)}</td></tr>`,
+    "total");
+}
+
+presets[2] && ($("from").value = presets[2][1], $("to").value = presets[2][2], mark(2));
+render();
+</script>
+</body>
+</html>
