@@ -31,13 +31,16 @@ jobs:
       - name: Build exe
         run: |
           python -m pctimelogger.icon icon.ico
-          pyinstaller --onefile --noconsole --name PCTimeLogger --icon icon.ico --hidden-import pystray._win32 PCTimeLogger.py
+          pyinstaller --onefile --noconsole --name PCTimeLogger --icon icon.ico --hidden-import pystray._win32 --add-data "pctimelogger/analysis.html;pctimelogger" PCTimeLogger.py
 
       - name: Smoke test exe
         shell: pwsh
         run: |
-          $p = Start-Process dist\PCTimeLogger.exe -ArgumentList "info" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "exit code $($p.ExitCode)" }
+          foreach ($cmd in @("info", "analysis")) {
+            $p = Start-Process dist\PCTimeLogger.exe -ArgumentList $cmd -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "$cmd exit code $($p.ExitCode)" }
+          }
+          if (-not (Test-Path "$env:LOCALAPPDATA\PCTimeLogger\analuus.html")) { throw "analuus.html missing" }
 
       - uses: actions/upload-artifact@v4
         with:

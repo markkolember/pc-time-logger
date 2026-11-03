@@ -18,6 +18,12 @@ Pythonit pole vaja paigaldada.
 Tegumiriba paremas nurgas kellaaja kõrval on sinine kellaikoon. Klõps sellel avab tänase aruande. Paremklõpsuga avaneb menüü:
 
 - **Tänane aruanne** ja **Selle nädala aruanne**: aeg programmide ja failide kaupa ning päeva ajajoon.
+- **Analüüs: objektid, kaustad, failid**: avab brauseris lehe, kus saab valida perioodi ja näeb:
+  - iga objekti ja teema kohta aega arvutis, objektil kohal (telefoni järgi), sõitu sinna ja tagasi (aeg ja km) ning kokku;
+  - kaustade kaupa arvutiaega ja failide arvu;
+  - failide kaupa aega, avamiskordi ning esimest ja viimast kasutust.
+
+  Objekt ja teema tuletatakse kausta nimest kaustas „AAA aktiivsed objektid“: „Audentes pikk koridor“ → objekt „Audentes“, teema „pikk koridor“ (objekti nimi on kaustanimede ühine algus).
 - **Ava andmete kaust**: andmebaas, seaded ja logi.
 - **Käivita koos Windowsiga**: automaatkäivitus sisse või välja.
 - **Välju**: lõpetab logimise.

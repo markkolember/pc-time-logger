@@ -5,9 +5,9 @@ import logging
 import os
 import sys
 import threading
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
-from . import autostart, db, installer, report
+from . import analysis, autostart, db, installer, report
 from .config import config_path, data_dir, load_config, save_config
 from .icon import icon_image
 from .service import run_logging
@@ -32,6 +32,18 @@ def _open_report(first: date, last: date) -> None:
         conn.close()
     path = data_dir() / "aruanne.txt"
     path.write_text(text, encoding="utf-8-sig")
+    os.startfile(path)
+
+
+def _open_analysis() -> None:
+    cfg = load_config()
+    conn = db.connect(cfg.db_path)
+    try:
+        html = analysis.render_html(analysis.build_data(conn, cfg), datetime.now())
+    finally:
+        conn.close()
+    path = data_dir() / "analuus.html"
+    path.write_text(html, encoding="utf-8")
     os.startfile(path)
 
 
@@ -72,6 +84,9 @@ def run_tray() -> int:
         first = t - timedelta(days=t.weekday())
         _open_report(first, first + timedelta(days=6))
 
+    def open_analysis(icon, item):
+        _open_analysis()
+
     def open_folder(icon, item):
         os.startfile(data_dir())
 
@@ -87,6 +102,7 @@ def run_tray() -> int:
     menu = pystray.Menu(
         pystray.MenuItem("Tänane aruanne", today, default=True),
         pystray.MenuItem("Selle nädala aruanne", week),
+        pystray.MenuItem("Analüüs: objektid, kaustad, failid", open_analysis),
         pystray.MenuItem("Ava andmete kaust", open_folder),
         pystray.MenuItem("Käivita koos Windowsiga", toggle_autostart, checked=lambda item: cfg.autostart),
         pystray.Menu.SEPARATOR,

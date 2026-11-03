@@ -10,7 +10,7 @@ import threading
 from datetime import date, timedelta
 from logging.handlers import RotatingFileHandler
 
-from . import db, phone_import, report
+from . import analysis, db, phone_import, report
 from .config import config_path, data_dir, load_config
 
 log = logging.getLogger("pctimelogger")
@@ -84,6 +84,21 @@ def cmd_timeline(args) -> int:
     return 0
 
 
+def cmd_analysis(args) -> int:
+    from datetime import datetime
+
+    cfg = load_config()
+    html = analysis.render_html(analysis.build_data(db.connect(cfg.db_path), cfg), datetime.now())
+    path = data_dir() / "analuus.html"
+    path.write_text(html, encoding="utf-8")
+    print(f"Analüüs: {path}")
+    if args.open:
+        import webbrowser
+
+        webbrowser.open(path.as_uri())
+    return 0
+
+
 def cmd_import_phone(args) -> int:
     cfg = load_config()
     folder = args.folder or cfg.phone_inbox
@@ -124,6 +139,10 @@ def main(argv: list[str] | None = None) -> int:
     tl = sub.add_parser("timeline", help="päeva ajajoon")
     tl.add_argument("--day", help="päev kujul AAAA-KK-PP (vaikimisi täna)")
     tl.set_defaults(func=cmd_timeline)
+
+    an = sub.add_parser("analysis", help="analüüsi leht: objektid, kaustad, failid")
+    an.add_argument("--open", action="store_true", help="ava brauseris")
+    an.set_defaults(func=cmd_analysis)
 
     imp = sub.add_parser("import-phone", help="loe telefoni andmed Google Drive'i kaustast")
     imp.add_argument("--folder", help="kaust (vaikimisi config.json phone_inbox)")
